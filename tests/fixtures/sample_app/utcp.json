@@ -1,0 +1,172 @@
+{
+  "manual_version": "1.0.0",
+  "utcp_version": "1.0.2",
+  "tools": [
+    {
+      "name": "get_get_user_profile",
+      "description": "Retrieve data from /api/v1/users/{user_id}. Safe to call.",
+      "inputs": {
+        "type": "object",
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "description": "Parameter 'user_id' (query)"
+          }
+        },
+        "required": [
+          "user_id"
+        ]
+      },
+      "outputs": {
+        "type": "object",
+        "description": "JSON response from endpoint"
+      },
+      "tags": [
+        "users"
+      ],
+      "tool_call_template": {
+        "name": "get_get_user_profile",
+        "call_template_type": "http",
+        "url": "https://api.example.com/api/v1/users/{user_id}",
+        "http_method": "GET",
+        "content_type": "application/json",
+        "allowed_communication_protocols": [
+          "http"
+        ],
+        "headers": {},
+        "body_field": "body",
+        "header_fields": []
+      }
+    },
+    {
+      "name": "post_create_user",
+      "description": "Create or submit data to /api/v1/users. Pre-conditions: Ensure required parameters are provided.",
+      "inputs": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "type": "string",
+            "description": "Parameter 'user' (body)"
+          }
+        },
+        "required": [
+          "user"
+        ]
+      },
+      "outputs": {
+        "type": "object",
+        "description": "JSON response from endpoint"
+      },
+      "tags": [
+        "users"
+      ],
+      "tool_call_template": {
+        "name": "post_create_user",
+        "call_template_type": "http",
+        "url": "https://api.example.com/api/v1/users",
+        "http_method": "POST",
+        "content_type": "application/json",
+        "allowed_communication_protocols": [
+          "http"
+        ],
+        "headers": {},
+        "body_field": "body",
+        "header_fields": []
+      }
+    },
+    {
+      "name": "post_place_order",
+      "description": "Create or submit data to /api/v1/orders. Pre-conditions: Ensure required parameters are provided.",
+      "inputs": {
+        "type": "object",
+        "properties": {
+          "order": {
+            "type": "string",
+            "description": "Parameter 'order' (body)"
+          },
+          "token": {
+            "type": "string",
+            "description": "Parameter 'token' (query)"
+          }
+        },
+        "required": [
+          "order",
+          "token"
+        ]
+      },
+      "outputs": {
+        "type": "object",
+        "description": "JSON response from endpoint"
+      },
+      "tags": [
+        "orders"
+      ],
+      "tool_call_template": {
+        "name": "post_place_order",
+        "call_template_type": "http",
+        "url": "https://api.example.com/api/v1/orders",
+        "http_method": "POST",
+        "content_type": "application/json",
+        "allowed_communication_protocols": [
+          "http"
+        ],
+        "auth": {
+          "auth_type": "api_key",
+          "api_key": "Bearer ${API_KEY}",
+          "var_name": "Authorization",
+          "location": "header"
+        },
+        "headers": {},
+        "body_field": "body",
+        "header_fields": []
+      }
+    },
+    {
+      "name": "delete_cancel_order",
+      "description": "Delete or remove resource at /api/v1/orders/{order_id}. Destructive operation.",
+      "inputs": {
+        "type": "object",
+        "properties": {
+          "order_id": {
+            "type": "string",
+            "description": "Parameter 'order_id' (query)"
+          },
+          "token": {
+            "type": "string",
+            "description": "Parameter 'token' (query)"
+          }
+        },
+        "required": [
+          "order_id",
+          "token"
+        ]
+      },
+      "outputs": {
+        "type": "object",
+        "description": "JSON response from endpoint"
+      },
+      "tags": [
+        "orders"
+      ],
+      "tool_call_template": {
+        "name": "delete_cancel_order",
+        "call_template_type": "http",
+        "url": "https://api.example.com/api/v1/orders/{order_id}",
+        "http_method": "DELETE",
+        "content_type": "application/json",
+        "allowed_communication_protocols": [
+          "http"
+        ],
+        "auth": {
+          "auth_type": "api_key",
+          "api_key": "Bearer ${API_KEY}",
+          "var_name": "Authorization",
+          "location": "header"
+        },
+        "headers": {},
+        "body_field": "body",
+        "header_fields": []
+      }
+    }
+  ]
+}
