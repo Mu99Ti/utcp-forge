@@ -3,6 +3,7 @@ from pathlib import Path
 from utcp_forge.extractors.fastapi_ast import FastAPIASTExtractor
 from utcp_forge.indexer.symbol_table import SymbolTable
 from utcp_forge.indexer.host_detector import HostDetector
+from utcp_forge.indexer.backend_detector import BackendDetector
 from utcp_forge.agent.investigator import RouteInvestigatorAgent
 from utcp_forge.compiler.manual_builder import UtcpCompiler
 from utcp_forge.models.ir import EnrichedToolIR
@@ -43,6 +44,14 @@ class TestUTCPForgePipeline(unittest.TestCase):
         base_url = HostDetector.detect_base_url(str(fixture_dir), default="http://localhost:9000")
         self.assertEqual(base_url, "http://localhost:9000")
 
+    def test_backend_detector_on_monorepo(self):
+        # Test on cloned full-stack template repo if present
+        repo_root = Path("/tmp/test-fastapi-repo")
+        if repo_root.exists():
+            backend_dirs = BackendDetector.locate_backend_dirs(str(repo_root))
+            backend_paths = [str(p) for p in backend_dirs]
+            self.assertTrue(any("backend" in p for p in backend_paths))
+
     def test_namespaced_utcp_compilation_and_collision_handling(self):
         tools = [
             EnrichedToolIR(
@@ -82,7 +91,6 @@ class TestUTCPForgePipeline(unittest.TestCase):
         self.assertIn("store_api.users_list_2", tool_names)
         self.assertIn("store_api.orders_create", tool_names)
 
-        # Check URL formatting has single slash
         order_tool = next(t for t in manual.tools if t.name == "store_api.orders_create")
         self.assertEqual(order_tool.tool_call_template.url, "https://api.store.com/orders")
         self.assertEqual(order_tool.tool_call_template.auth.api_key, "Bearer ${store_api__API_KEY}")

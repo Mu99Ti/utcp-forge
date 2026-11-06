@@ -1,13 +1,14 @@
 from __future__ import annotations
 import typer
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 from rich.console import Console
 
 from utcp_forge.extractors.fastapi_ast import FastAPIASTExtractor
 from utcp_forge.extractors.openapi import OpenApiExtractor
 from utcp_forge.indexer.symbol_table import SymbolTable
 from utcp_forge.indexer.host_detector import HostDetector
+from utcp_forge.indexer.backend_detector import BackendDetector
 from utcp_forge.agent.investigator import RouteInvestigatorAgent
 from utcp_forge.compiler.manual_builder import UtcpCompiler
 from utcp_forge.ui.console import render_tool_summary
@@ -20,7 +21,7 @@ console = Console()
 
 @app.command()
 def scan(
-    target: str = typer.Argument(..., help="Path to codebase directory, or OpenAPI spec file/URL"),
+    target: str = typer.Argument(..., help="Path to repository root, backend directory, or OpenAPI spec file/URL"),
     manual_name: str = typer.Option("app_service", "--manual-name", "-n", help="Namespace for manual (e.g. order_service)"),
     output: str = typer.Option("utcp.json", "--output", "-o", help="Target path for utcp.json"),
     base_url: Optional[str] = typer.Option(None, "--base-url", "-u", help="Base URL for API routes (auto-detected if omitted)"),
@@ -33,38 +34,60 @@ def scan(
     if not quiet:
         console.print(f"[bold cyan]Scanning target:[/bold cyan] {target}")
 
-    target_path = Path(target)
-    symbol_table = None
-
-    # Detect base URL if not explicitly provided
-    resolved_base_url = base_url
-    if not resolved_base_url and target_path.is_dir():
-        resolved_base_url = HostDetector.detect_base_url(target)
-        if not quiet:
-            console.print(f"[dim]Auto-detected base URL:[/dim] [cyan]{resolved_base_url}[/cyan]")
-    elif not resolved_base_url:
-        resolved_base_url = "http://localhost:8000"
-
-    # 1. Extraction: Codebase vs OpenAPI
+    target_path = Path(target).resolve()
     routes = []
+    symbol_table = None
+    resolved_base_url = base_url
+
+    # Case A: Live URL or standalone OpenAPI / Swagger file
     if target.startswith("http://") or target.startswith("https://") or (target_path.is_file() and target_path.suffix in (".json", ".yaml", ".yml")):
         if not quiet:
             console.print("[dim]Detected OpenAPI/Swagger spec...[/dim]")
         extractor = OpenApiExtractor(target)
         routes = extractor.scan()
+        if not resolved_base_url:
+            resolved_base_url = "http://localhost:8000"
+
+    # Case B: Repository or Codebase Directory
     else:
+        # Detect backend service directories inside monorepo/full-stack project
+        detected_backend_dirs = BackendDetector.locate_backend_dirs(str(target_path))
+        
         if not quiet:
-            console.print("[dim]Indexing symbols & scanning Python codebase via AST...[/dim]")
-        symbol_table = SymbolTable(target)
-        extractor = FastAPIASTExtractor(target)
-        routes = extractor.scan()
+            if len(detected_backend_dirs) == 1 and detected_backend_dirs[0] != target_path:
+                console.print(f"[dim]Auto-detected backend directory:[/dim] [cyan]{detected_backend_dirs[0]}[/cyan]")
+            elif len(detected_backend_dirs) > 1:
+                console.print(f"[dim]Auto-detected {len(detected_backend_dirs)} backend services across repository.[/dim]")
+
+        # Auto-detect base URL from project configurations
+        if not resolved_base_url:
+            resolved_base_url = HostDetector.detect_base_url(str(target_path))
+            if not quiet:
+                console.print(f"[dim]Auto-detected base URL:[/dim] [cyan]{resolved_base_url}[/cyan]")
+
+        # Scan each detected backend directory
+        all_routes = []
+        for b_dir in detected_backend_dirs:
+            sym_table = SymbolTable(str(b_dir))
+            if not symbol_table:
+                symbol_table = sym_table
+            extractor = FastAPIASTExtractor(str(b_dir))
+            all_routes.extend(extractor.scan())
+
+        # Deduplicate routes by method + path
+        seen_routes = set()
+        for r in all_routes:
+            key = (r.method, r.path)
+            if key not in seen_routes:
+                seen_routes.add(key)
+                routes.append(r)
 
     if not routes:
-        console.print("[bold red]No API routes found in target.[/bold red]")
+        console.print("[bold red]No API routes found in target repository or directories.[/bold red]")
         raise typer.Exit(code=1)
 
     if not quiet:
-        console.print(f"[green]Found {len(routes)} raw endpoints.[/green]")
+        console.print(f"[green]Found {len(routes)} raw endpoints across target codebase.[/green]")
         console.print(f"[dim]Investigating with DeepAgent ({model})...[/dim]")
 
     # 2. Agent Investigation
@@ -84,7 +107,7 @@ def scan(
     manual = UtcpCompiler.compile(
         enriched_tools,
         manual_name=manual_name,
-        base_url=resolved_base_url
+        base_url=resolved_base_url or "http://localhost:8000"
     )
     UtcpCompiler.save_to_file(manual, output)
 
