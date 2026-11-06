@@ -1,110 +1,66 @@
 ---
 name: utcp-forge
-description: Inspects any backend application or OpenAPI spec and generates a production-ready, agent-friendly UTCP v1.0 manual (utcp.json) with zero runtime proxy overhead.
+description: Inspects any backend application (FastAPI, Flask, Express) or OpenAPI specification and synthesizes production-ready, agent-friendly UTCP v1.0 manuals (utcp.json) with zero runtime proxy overhead. Triggers on "generate utcp", "create utcp.json", "make api agent-ready", or "utcp manual".
+license: Apache-2.0
 ---
 
-# UTCP-Forge Skill
+# UTCP-Forge
 
-Use this skill when you or the user wants to expose an existing backend project, microservice, or API to AI coding agents via the **Universal Tool Calling Protocol (UTCP v1.0)**.
+Autonomous skill that extracts, filters, and compiles production-ready Universal Tool Calling Protocol (UTCP v1.0) manuals directly from backend codebases.
 
-Unlike MCP, UTCP eliminates proxy wrappers, allowing agents to directly call native endpoints. This skill automates the extraction, semantic curation, and namespacing required for agent tool calling.
-
----
-
-## When to Invoke This Skill
-
-- The user asks to "make this API agent-ready", "generate a UTCP manual", "create utcp.json", or "connect this service to UTCP/MCP".
-- The user wants their agent to call their local or deployed backend endpoints directly without building an intermediate wrapper.
-- The user needs to prune noisy routes (like `/health` or `/metrics`) and produce high-context parameter descriptions for LLMs.
+Unlike Anthropic's MCP (which forces intermediate proxy servers), UTCP allows AI agents to directly call native HTTP/WebSocket endpoints. This skill ensures generated manuals have accurate descriptions, strict namespacing, and zero context-poisoning endpoints.
 
 ---
 
-## Execution Workflow for Coding Agents
+## Progressive Disclosure & Resources
 
-### Step 1: Verify Installation or CLI Availability
+- `references/utcp_spec_v1.md`: Strict UTCP 1.0.x JSON schema and namespacing rules.
+- `references/framework_adapters.md`: AST extraction rules for FastAPI, Flask, and Express.
+- `scripts/run_forge.py`: Standalone CLI wrapper executable without global installations.
 
-Check if `utcp-forge` is installed in the current environment or run it via Python:
+---
+
+## Workflow
+
+### 1. Identify Target & Manual Namespace
+Determine the project directory (e.g., `./backend`) or OpenAPI spec URL/file.
+Select a clean snake_case namespace for the manual:
+- E-commerce service: `ecommerce_api`
+- Billing service: `billing_service`
+
+### 2. Auto-Detect Base URL
+`utcp-forge` automatically inspects:
+- `.env`, `.env.local` for `BASE_URL`, `DOMAIN`, `PORT`
+- `docker-compose.yml` for exposed host ports
+- `config.py` / `settings.py` for server assignments
+
+If unresolvable, default to `http://localhost:8000` or specify with `--base-url`.
+
+### 3. Execute Scan & Synthesis
+Invoke the bundled script or the `utcp-forge` command:
 
 ```bash
-which utcp-forge || echo "Run via python -m utcp_forge.cli"
-```
-
-If not installed globally, execute directly from its repository or environment:
-
-```bash
-python -m utcp_forge.cli --help
-```
-
----
-
-### Step 2: Determine Manual Namespace & Base URL
-
-1. **Namespace**: Ask or infer a clean snake_case namespace for the manual:
-   - For an order service: `order_service`
-   - For a user service: `user_service`
-2. **Base URL**:
-   - `utcp-forge` automatically detects base URLs from `.env`, `docker-compose.yml`, and `config.py`.
-   - If the app runs on a custom port, pass `--base-url http://localhost:<port>`.
-
----
-
-### Step 3: Run the Scan & Agentification
-
-Run `utcp-forge` against the target codebase or OpenAPI spec:
-
-```bash
-# Scan a Python/FastAPI codebase
-utcp-forge scan ./backend \
+# Using python script directly
+python skills/utcp-forge/scripts/run_forge.py scan ./backend \
   --manual-name my_service \
   --output ./public/utcp.json
 
-# Scan an existing OpenAPI JSON/YAML
-utcp-forge scan ./docs/openapi.json \
-  --manual-name my_service \
-  --output ./utcp.json
-```
-
-If using a local or proxy LLM endpoint (e.g. at `127.0.0.1:20128/v1`):
-
-```bash
-utcp-forge scan ./backend \
+# Or if using a local LLM endpoint (e.g. 127.0.0.1:20128)
+python skills/utcp-forge/scripts/run_forge.py scan ./backend \
   --manual-name my_service \
   --llm-base-url http://127.0.0.1:20128/v1 \
   --model free \
   --output ./utcp.json
 ```
 
----
+### 4. Quality Audit
+Confirm the output `utcp.json` conforms to UTCP v1.0:
+- All tools use `<manual_name>.<resource>_<action>` (e.g. `my_service.users_create`).
+- Auth placeholders use double underscores: `${<manual_name>__<VAR_NAME>}`.
+- Non-business routes (`/health`, `/metrics`, `/docs`) are excluded.
+- Protocol restrictions enforce `allowed_communication_protocols: ["http"]`.
 
-### Step 4: Validate Output Quality
-
-Open and inspect the generated `utcp.json`:
-1. Verify `manual_version: "1.0.0"` and `utcp_version: "1.0.2"`.
-2. Check that all tools are prefixed with `<manual_name>.<resource>_<action>` (e.g. `my_service.users_create`).
-3. Ensure auth tokens are namespaced with `${<manual_name>__<VAR_NAME>}`.
-4. Verify non-business routes (`/health`, `/metrics`, `/docs`) were omitted.
-
----
-
-### Step 5: (Optional) Expose `/utcp` Route in Target Framework
-
-To allow agents to discover tools at runtime directly from the service:
-
-#### FastAPI:
-```python
-from fastapi import FastAPI
-from fastapi.responses import FileResponse
-
-app = FastAPI()
-
-@app.get("/utcp")
-def get_utcp_manual():
-    return FileResponse("utcp.json")
-```
-
-#### Express.js:
-```javascript
-app.get('/utcp', (req, res) => {
-  res.sendFile(path.join(__dirname, 'utcp.json'));
-});
-```
+### 5. (Optional) Provide Runtime Route Snippet
+If the user wants their app to serve its own manual at runtime, provide the one-line route handler:
+- **FastAPI**: `app.get("/utcp")(lambda: FileResponse("utcp.json"))`
+- **Express**: `app.get("/utcp", (req, res) => res.sendFile("utcp.json"))`
