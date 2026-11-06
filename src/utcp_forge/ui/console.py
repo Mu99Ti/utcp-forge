@@ -7,7 +7,7 @@ from utcp_forge.models.ir import EnrichedToolIR
 console = Console()
 
 def render_tool_summary(tools: List[EnrichedToolIR]) -> None:
-    table = Table(title="🛠️  UTCP-Forge Agent Tool Discovery", show_header=True, header_style="bold magenta")
+    table = Table(title="UTCP-Forge Agent Tool Discovery", show_header=True, header_style="bold magenta")
     table.add_column("Status", style="dim", width=10)
     table.add_column("Method", width=8)
     table.add_column("Path", width=30)
