@@ -12,11 +12,34 @@ class FastAPIASTExtractor:
 
     def __init__(self, root_dir: str):
         self.root_dir = Path(root_dir)
+        self.router_prefixes: Dict[str, str] = {}
+        self._discover_router_prefixes()
+
+    def _discover_router_prefixes(self) -> None:
+        """Finds router prefixes e.g. APIRouter(prefix="/users") or app.include_router(..., prefix="/api")."""
+        for py_file in self.root_dir.rglob("*.py"):
+            if any(p in str(py_file) for p in ("venv", ".venv", "__pycache__", ".git")):
+                continue
+            try:
+                content = py_file.read_text(encoding="utf-8")
+                tree = ast.parse(content, filename=str(py_file))
+                for node in ast.walk(tree):
+                    # router = APIRouter(prefix="/users")
+                    if isinstance(node, ast.Assign):
+                        for target in node.targets:
+                            if isinstance(target, ast.Name) and isinstance(node.value, ast.Call):
+                                func_name = ast.unparse(node.value.func)
+                                if "APIRouter" in func_name:
+                                    for kw in node.value.keywords:
+                                        if kw.arg == "prefix" and isinstance(kw.value, ast.Constant):
+                                            self.router_prefixes[target.id] = str(kw.value.value)
+            except Exception:
+                continue
 
     def scan(self) -> List[RouteIR]:
         routes: List[RouteIR] = []
         for py_file in self.root_dir.rglob("*.py"):
-            if "venv" in str(py_file) or ".venv" in str(py_file) or "__pycache__" in str(py_file):
+            if any(p in str(py_file) for p in ("venv", ".venv", "__pycache__", ".git")):
                 continue
             try:
                 content = py_file.read_text(encoding="utf-8")
@@ -35,7 +58,7 @@ class FastAPIASTExtractor:
                     route_info = self._parse_route_decorator(decorator)
                     if route_info:
                         docstring = ast.get_docstring(node)
-                        params = self._extract_params(node)
+                        params = self._extract_params(node, route_info["path"])
                         auth_required, auth_type = self._detect_auth(node)
 
                         route = RouteIR(
@@ -59,10 +82,22 @@ class FastAPIASTExtractor:
         # Handles @app.get('/path') or @router.post('/path', tags=['users'])
         if isinstance(decorator, ast.Call) and isinstance(decorator.func, ast.Attribute):
             method = decorator.func.attr.lower()
+            caller_name = ast.unparse(decorator.func.value)
             if method in self.HTTP_METHODS:
                 path = "/"
                 if decorator.args and isinstance(decorator.args[0], ast.Constant) and isinstance(decorator.args[0].value, str):
                     path = decorator.args[0].value
+                elif decorator.args and isinstance(decorator.args[0], ast.JoinedStr):
+                    # Handle f-strings or constants
+                    path = ast.unparse(decorator.args[0])
+
+                # Prepend router prefix if found
+                prefix = self.router_prefixes.get(caller_name, "")
+                if prefix and not path.startswith(prefix):
+                    path = f"{prefix.rstrip('/')}/{path.lstrip('/')}"
+                if not path.startswith("/"):
+                    path = f"/{path}"
+
                 tags = []
                 for kw in decorator.keywords:
                     if kw.arg == "tags" and isinstance(kw.value, ast.List):
@@ -70,8 +105,10 @@ class FastAPIASTExtractor:
                 return {"method": method, "path": path, "tags": tags}
         return None
 
-    def _extract_params(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> List[ParamIR]:
+    def _extract_params(self, node: ast.FunctionDef | ast.AsyncFunctionDef, route_path: str) -> List[ParamIR]:
         params: List[ParamIR] = []
+        path_param_names = set(re.findall(r"\{([a-zA-Z0-9_]+)\}", route_path))
+
         for arg in node.args.args:
             name = arg.arg
             if name in ("self", "cls", "request", "db"):
@@ -80,10 +117,13 @@ class FastAPIASTExtractor:
             if arg.annotation:
                 type_str = ast.unparse(arg.annotation)
             
-            # Simple heuristic: if type contains BaseModel or Body, mark as body
-            location = "query"
-            if any(k in type_str for k in ("BaseModel", "Schema", "Body", "Payload", "Create", "Update")):
+            # Determine parameter location
+            if name in path_param_names:
+                location = "path"
+            elif any(k in type_str for k in ("BaseModel", "Schema", "Body", "Payload", "Create", "Update")):
                 location = "body"
+            else:
+                location = "query"
 
             params.append(ParamIR(name=name, location=location, type_str=type_str, required=True))
         return params
@@ -92,6 +132,6 @@ class FastAPIASTExtractor:
         for default in node.args.defaults:
             expr = ast.unparse(default)
             if "Depends" in expr:
-                if any(w in expr.lower() for w in ("auth", "user", "token", "jwt", "bearer", "api_key", "security")):
+                if any(w in expr.lower() for w in ("auth", "user", "token", "jwt", "bearer", "api_key", "security", "permission")):
                     return True, "bearer"
         return False, None

@@ -11,11 +11,10 @@ class UtcpCompiler:
 
     @staticmethod
     def format_tool_name(manual_name: str, path: str, method: str) -> str:
-        """Enforces <manual_name>.<resource>_<action> or <manual_name>.<action>_<resource>."""
+        """Enforces <manual_name>.<resource>_<action> with collision resistance."""
         clean_manual = re.sub(r"[^a-zA-Z0-9_]", "_", manual_name.lower())
         
-        # Extract resource and action from path
-        # e.g., /api/v1/users/{user_id} -> users_get_by_user_id
+        # Clean path segments
         path_parts = [p.strip("{}") for p in path.strip("/").split("/") if p and p not in ("api", "v1", "v2", "v3")]
         resource = path_parts[0] if path_parts else "root"
         sub_action = "_".join(path_parts[1:]) if len(path_parts) > 1 else ""
@@ -34,7 +33,7 @@ class UtcpCompiler:
         if sub_action:
             action_name = f"{action_name}_by_{sub_action}"
 
-        clean_action = re.sub(r"[^a-zA-Z0-9_]", "_", action_name)
+        clean_action = re.sub(r"[^a-zA-Z0-9_]+", "_", action_name).strip("_")
         return f"{clean_manual}.{clean_action}"
 
     @staticmethod
@@ -52,12 +51,19 @@ class UtcpCompiler:
         base_url: str = "https://api.example.com"
     ) -> UtcpManual:
         utcp_tools: List[Tool] = []
+        used_names: set[str] = set()
 
         for t in tools:
             if not t.should_include:
                 continue
 
-            namespaced_tool_name = cls.format_tool_name(manual_name, t.path, t.method)
+            base_tool_name = cls.format_tool_name(manual_name, t.path, t.method)
+            namespaced_tool_name = base_tool_name
+            counter = 2
+            while namespaced_tool_name in used_names:
+                namespaced_tool_name = f"{base_tool_name}_{counter}"
+                counter += 1
+            used_names.add(namespaced_tool_name)
 
             auth = None
             if t.auth_header:
@@ -68,10 +74,13 @@ class UtcpCompiler:
                     location="header"
                 )
 
+            # Build URL ensuring single slash
+            full_url = f"{base_url.rstrip('/')}/{t.path.lstrip('/')}"
+
             template = HttpCallTemplate(
                 name=namespaced_tool_name,
                 call_template_type="http",
-                url=f"{base_url.rstrip('/')}{t.path}",
+                url=full_url,
                 http_method=t.method,
                 allowed_communication_protocols=["http"],
                 auth=auth
