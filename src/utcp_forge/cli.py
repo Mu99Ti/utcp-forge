@@ -7,6 +7,7 @@ from rich.console import Console
 from utcp_forge.extractors.fastapi_ast import FastAPIASTExtractor
 from utcp_forge.extractors.openapi import OpenApiExtractor
 from utcp_forge.indexer.symbol_table import SymbolTable
+from utcp_forge.indexer.host_detector import HostDetector
 from utcp_forge.agent.investigator import RouteInvestigatorAgent
 from utcp_forge.compiler.manual_builder import UtcpCompiler
 from utcp_forge.ui.console import render_tool_summary
@@ -22,7 +23,7 @@ def scan(
     target: str = typer.Argument(..., help="Path to codebase directory, or OpenAPI spec file/URL"),
     manual_name: str = typer.Option("app_service", "--manual-name", "-n", help="Namespace for manual (e.g. order_service)"),
     output: str = typer.Option("utcp.json", "--output", "-o", help="Target path for utcp.json"),
-    base_url: str = typer.Option("https://api.example.com", "--base-url", "-u", help="Base URL for API routes"),
+    base_url: Optional[str] = typer.Option(None, "--base-url", "-u", help="Base URL for API routes (auto-detected if omitted)"),
     llm_base_url: Optional[str] = typer.Option(None, "--llm-base-url", help="Custom OpenAI-compatible LLM endpoint (e.g. http://127.0.0.1:20128/v1)"),
     llm_api_key: Optional[str] = typer.Option(None, "--llm-api-key", help="API key for custom LLM endpoint"),
     model: str = typer.Option("free", "--model", "-m", help="LLM model for semantic curation"),
@@ -34,6 +35,15 @@ def scan(
 
     target_path = Path(target)
     symbol_table = None
+
+    # Detect base URL if not explicitly provided
+    resolved_base_url = base_url
+    if not resolved_base_url and target_path.is_dir():
+        resolved_base_url = HostDetector.detect_base_url(target)
+        if not quiet:
+            console.print(f"[dim]Auto-detected base URL:[/dim] [cyan]{resolved_base_url}[/cyan]")
+    elif not resolved_base_url:
+        resolved_base_url = "http://localhost:8000"
 
     # 1. Extraction: Codebase vs OpenAPI
     routes = []
@@ -74,7 +84,7 @@ def scan(
     manual = UtcpCompiler.compile(
         enriched_tools,
         manual_name=manual_name,
-        base_url=base_url
+        base_url=resolved_base_url
     )
     UtcpCompiler.save_to_file(manual, output)
 

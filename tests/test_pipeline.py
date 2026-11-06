@@ -2,6 +2,7 @@ import unittest
 from pathlib import Path
 from utcp_forge.extractors.fastapi_ast import FastAPIASTExtractor
 from utcp_forge.indexer.symbol_table import SymbolTable
+from utcp_forge.indexer.host_detector import HostDetector
 from utcp_forge.agent.investigator import RouteInvestigatorAgent
 from utcp_forge.compiler.manual_builder import UtcpCompiler
 
@@ -31,6 +32,12 @@ class TestUTCPForgePipeline(unittest.TestCase):
         self.assertIsNotNone(schema)
         self.assertIn("item_id", schema["properties"])
         self.assertIn("quantity", schema["properties"])
+
+    def test_host_detector(self):
+        fixture_dir = Path(__file__).parent / "fixtures" / "sample_app"
+        # Defaults cleanly when no env file exists
+        base_url = HostDetector.detect_base_url(str(fixture_dir), default="http://localhost:9000")
+        self.assertEqual(base_url, "http://localhost:9000")
 
     def test_namespaced_utcp_compilation(self):
         fixture_dir = Path(__file__).parent / "fixtures" / "sample_app"
