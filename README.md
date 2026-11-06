@@ -19,7 +19,7 @@ Try feeding an existing Swagger or OpenAPI file to an agent today:
 - **Agent blindness**: Endpoints like `POST /v1/claims` lack semantic context explaining *when*, *why*, and under what *pre-conditions* an agent should trigger them.
 - **Missing documentation**: Most internal microservices don't even have an up-to-date OpenAPI spec.
 
-**UTCP-Forge solves this at the source.** It inspects your actual application source code, maps routes and Pydantic schemas deterministically via an AST symbol table, uses an LLM to enrich semantic instructions, and outputs a strict UTCP v1.0 manual.
+**UTCP-Forge solves this at the source.** Point it at your application repository, and it automatically locates your backend services, extracts routes and Pydantic schemas via AST, auto-detects your runtime host/port, uses an LLM to enrich semantic instructions, and outputs a strict UTCP v1.0 manual.
 
 Zero runtime wrappers. Zero extra infrastructure. Instant agent connectivity.
 
@@ -27,18 +27,23 @@ Zero runtime wrappers. Zero extra infrastructure. Instant agent connectivity.
 
 ## Key Highlights
 
-- **Codebase-First AST Extraction**: Points straight at your code repository (FastAPI, Starlette, Flask). Discovers decorators, schemas, and auth guards without executing your code.
+- **Full-Stack & Monorepo Auto-Discovery**: Point `utcp-forge` at your repository root (`/`). It ignores frontend assets, automatically finds backend service directories (`backend/`, `server/`, `api/`, `services/*`), and aggregates them into a single manual.
+- **Automatic Domain & Port Resolution**: Intelligently parses `.env`, `docker-compose.yml`, `config.py`, and `settings.py` to deduce your running domain and port (`http://localhost:8000`), requiring zero manual configuration.
+- **Codebase-First AST Extraction**: Inspects Python AST trees directly (FastAPI, Starlette, Flask). Discovers decorators, schemas, parameter types, and auth guards without executing your code.
 - **Deterministic SymbolTable (90%+ Token Savings)**: Slices only the essential signatures and Pydantic schemas. Avoids dumping whole files into the LLM, keeping costs at pennies per service.
 - **Intelligent Noise Pruning**: Automatically drops non-agent endpoints (`/health`, `/metrics`, `/docs`) so your agent context stays lean and focused.
 - **Enterprise Namespacing (UTCP v1.0 Standard)**: Guarantees collision-free tool identifiers (`<manual_name>.<resource>_<action>`) and isolated credential variables (`${<manual_name>__<VAR_NAME>}`).
-- **Drop-In Agent Skill Included**: Packaged with a native `skills/utcp-forge/` definition ready for Claude Code, Cursor, and OpenCode.
+- **Drop-In Agent Skill Included**: Packaged with a native `skills/utcp-forge/` definition adhering to Anthropic and Claude Code progressive disclosure specifications.
 
 ---
 
 ## Architecture at a Glance
 
 ```
-  [ Your Backend Codebase ]
+  [ Full-Stack Monorepo / Repository Root ]
+             │
+             ▼ (BackendDetector & HostDetector)
+  [ Auto-Discovered Backend & Base URL ]
              │
              ▼ (Zero-Cost AST Walk)
   [ Deterministic SymbolTable ]
@@ -63,20 +68,20 @@ Zero runtime wrappers. Zero extra infrastructure. Instant agent connectivity.
 ### 1. Installation
 
 ```bash
-git clone https://github.com/muhamadtalebi/utcp-forge.git
+git clone https://github.com/Mu99Ti/utcp-forge.git
 cd utcp-forge
 uv venv
 source .venv/bin/activate
 uv pip install -e .
 ```
 
-### 2. Scan Your Application
+### 2. Scan Your Entire Project (Zero Configuration)
 
-Point `utcp-forge` at your backend folder. It auto-detects your base URL, discovers routes, and compiles `utcp.json`:
+Point `utcp-forge` at the root of your project or monorepo. It auto-detects backend services, resolves the port, and compiles `utcp.json`:
 
 ```bash
-utcp-forge scan ./backend \
-  --manual-name billing_service \
+utcp-forge scan ./my_fullstack_project \
+  --manual-name my_service \
   --output ./public/utcp.json
 ```
 
@@ -85,7 +90,7 @@ utcp-forge scan ./backend \
 Works with any OpenAI-compatible API (including local models, vLLM, Ollama, or proxies):
 
 ```bash
-utcp-forge scan ./backend \
+utcp-forge scan ./my_project \
   --manual-name billing_service \
   --llm-base-url http://127.0.0.1:20128/v1 \
   --model free \
@@ -159,7 +164,7 @@ Here is what UTCP-Forge generates from your raw code:
 
 ## Coding Agent Skill Integration
 
-UTCP-Forge includes an official Agent Skill in `skills/utcp-forge/` conforming to Anthropic and Claude Code specifications. 
+UTCP-Forge includes an official Agent Skill in `skills/utcp-forge/` conforming to Anthropic and Claude Code specifications.
 
 To give your AI coding agent the superpower of making any project agent-ready on command:
 
@@ -177,7 +182,7 @@ Now, simply prompt your coding agent:
 
 | Option | Flag | Description | Default |
 |---|---|---|---|
-| `target` | Positional | Path to codebase directory, or OpenAPI JSON/YAML URL/file | Required |
+| `target` | Positional | Path to repository root, backend directory, or OpenAPI JSON/YAML URL/file | Required |
 | `--manual-name` | `-n` | Namespace prefix for tools and credentials | `app_service` |
 | `--output` | `-o` | Destination file path for generated manual | `utcp.json` |
 | `--base-url` | `-u` | Base URL prepended to route paths (auto-detected if omitted) | Auto-detected |
