@@ -1,51 +1,66 @@
 # UTCP-Forge
 
-> Zero-overhead agentification for backend APIs.
-> Turn any existing codebase or OpenAPI specification into production-grade, agent-ready Universal Tool Calling Protocol (UTCP v1.0) manuals in seconds.
+### Stop writing wrapper servers for your AI agents.
+**Turn any existing FastAPI, Flask, or Express backend into production-ready [UTCP v1.0](https://github.com/universal-tool-calling-protocol) tools in 5 seconds flat.**
 
 ---
 
-## Executive Summary & Value Proposition
+## Why Developers & AI Engineers Care
 
-Anthropic's Model Context Protocol (MCP) introduced an industry-standard interface for agent tooling, but it imposed a steep "wrapper tax": developers must deploy, run, and maintain dedicated proxy server processes for every internal service.
+Anthropic's Model Context Protocol (MCP) started a revolution in agent tooling. But it introduced an agonizing tax for engineering teams: **the wrapper tax**.
 
-**UTCP (Universal Tool Calling Protocol)** eliminates this wrapper tax by allowing autonomous AI agents to invoke native HTTP, WebSocket, and CLI endpoints directly.
+To let an agent use your internal APIs, you had to write, containerize, and host separate MCP proxy servers over stdio or SSE. More moving parts, more memory leaks, more latency.
 
-However, adopting UTCP presents critical engineering hurdles:
-1. **The Context Window Poisoning Problem**: Naive OpenAPI ingestion dumps hundreds of administrative, telemetry, and health check endpoints into the agent prompt, driving up latency and token costs.
-2. **Ambiguous Tool Descriptions**: Bare API specs lack semantic instructions explaining *when*, *why*, and under what *pre-conditions* an agent should trigger an action.
-3. **Outdated or Missing Documentation**: Many production services lack up-to-date Swagger/OpenAPI files altogether.
+**UTCP (Universal Tool Calling Protocol)** threw away the wrapper servers. It proved that AI agents can call native HTTP, WebSocket, and CLI endpoints directly—if they have a clean tool manual.
 
-**UTCP-Forge solves these challenges at the source.** It statically scans application codebases, resolves schemas deterministically via an AST symbol table, uses an LLM to enrich semantic tool descriptions, and emits strict UTCP v1.0 manuals adhering to expert namespacing rules.
+### The Catch with Raw APIs
+Try feeding an existing Swagger or OpenAPI file to an agent today:
+- **Context window explosion**: Hundreds of internal health checks (`/healthz`, `/metrics`), debug routes, and telemetry spam your prompt and inflate token bills.
+- **Agent blindness**: Endpoints like `POST /v1/claims` lack semantic context explaining *when*, *why*, and under what *pre-conditions* an agent should trigger them.
+- **Missing documentation**: Most internal microservices don't even have an up-to-date OpenAPI spec.
 
----
+**UTCP-Forge solves this at the source.** It inspects your actual application source code, maps routes and Pydantic schemas deterministically via an AST symbol table, uses an LLM to enrich semantic instructions, and outputs a strict UTCP v1.0 manual.
 
-## Key Architecture & Cost-Efficiency Innovations
-
-### 1. Codebase-First AST Extraction
-Unlike naive tools that require manual OpenAPI generation, UTCP-Forge reads Python AST trees directly (FastAPI, Starlette, Flask). It maps route decorators, HTTP verbs, URL path parameters, and authentication dependencies without executing target code.
-
-### 2. Deterministic SymbolTable (90%+ Token Reduction)
-Rather than passing entire codebases into expensive LLM context windows, UTCP-Forge constructs an in-memory `SymbolTable` that:
-- Indexes all Pydantic models, TypedDicts, and dataclasses locally.
-- Resolves request and response schemas deterministically ($0.00 token cost).
-- Slices only minimal handler skeletons and docstrings, keeping per-route LLM consumption under 400 tokens.
-
-### 3. Expert Namespacing Standards (UTCP v1.0 Compliance)
-UTCP-Forge strictly enforces official UTCP v1.0 namespacing rules:
-- **Tool Identifiers**: Formatted as `<manual_name>.<resource>_<action>` (e.g. `billing_service.invoices_create`), preventing symbol collisions in multi-manual agent runtimes.
-- **Credential Isolation**: Environment variable placeholders are namespaced with duplicate underscores: `${<manual_name>__<VAR_NAME>}` (e.g. `${billing_service__API_KEY}`).
-- **Protocol Restraints**: Enforces `allowed_communication_protocols: ["http"]` to block unauthorized protocol escalation.
+Zero runtime wrappers. Zero extra infrastructure. Instant agent connectivity.
 
 ---
 
-## Getting Started
+## Key Highlights
 
-### Prerequisites
-- Python 3.9 or higher
-- `uv` (recommended) or `pip`
+- **Codebase-First AST Extraction**: Points straight at your code repository (FastAPI, Starlette, Flask). Discovers decorators, schemas, and auth guards without executing your code.
+- **Deterministic SymbolTable (90%+ Token Savings)**: Slices only the essential signatures and Pydantic schemas. Avoids dumping whole files into the LLM, keeping costs at pennies per service.
+- **Intelligent Noise Pruning**: Automatically drops non-agent endpoints (`/health`, `/metrics`, `/docs`) so your agent context stays lean and focused.
+- **Enterprise Namespacing (UTCP v1.0 Standard)**: Guarantees collision-free tool identifiers (`<manual_name>.<resource>_<action>`) and isolated credential variables (`${<manual_name>__<VAR_NAME>}`).
+- **Drop-In Agent Skill Included**: Packaged with a native `skills/utcp-forge/` definition ready for Claude Code, Cursor, and OpenCode.
 
-### Installation
+---
+
+## Architecture at a Glance
+
+```
+  [ Your Backend Codebase ]
+             │
+             ▼ (Zero-Cost AST Walk)
+  [ Deterministic SymbolTable ]
+     ├── Routes & Handlers
+     └── Pydantic / TypedDict Schemas
+             │
+             ▼ (Micro-Prompt Synthesis ~350 tokens)
+  [ LLM Semantic Curation Engine ]
+     ├── Prunes /health, /metrics
+     ├── Generates intent & side-effect warnings
+     └── Maps auth to isolated env placeholders
+             │
+             ▼
+  [ Production UTCP v1.0 Manual (`utcp.json`) ]
+     └── Ready for any UTCP or MCP-compatible agent!
+```
+
+---
+
+## Quickstart
+
+### 1. Installation
 
 ```bash
 git clone https://github.com/muhamadtalebi/utcp-forge.git
@@ -55,31 +70,31 @@ source .venv/bin/activate
 uv pip install -e .
 ```
 
-### Basic Usage
+### 2. Scan Your Application
 
-#### Scan a FastAPI / Python Codebase
-Point UTCP-Forge at your project root to scan AST symbols, prune internal endpoints, and compile `utcp.json`:
+Point `utcp-forge` at your backend folder. It auto-detects your base URL, discovers routes, and compiles `utcp.json`:
 
 ```bash
-utcp-forge scan ./my_backend_app \
-  --manual-name order_service \
-  --output ./public/utcp.json \
-  --base-url https://api.mycompany.com
+utcp-forge scan ./backend \
+  --manual-name billing_service \
+  --output ./public/utcp.json
 ```
 
-#### Scan with a Custom LLM Endpoint (e.g., Local or Proxy)
-UTCP-Forge supports any OpenAI-compatible API endpoint:
+### 3. Use with Custom / Local LLMs
+
+Works with any OpenAI-compatible API (including local models, vLLM, Ollama, or proxies):
 
 ```bash
-utcp-forge scan ./my_backend_app \
-  --manual-name order_service \
+utcp-forge scan ./backend \
+  --manual-name billing_service \
   --llm-base-url http://127.0.0.1:20128/v1 \
   --model free \
   --output ./utcp.json
 ```
 
-#### Scan an Existing OpenAPI / Swagger Spec
-If an OpenAPI spec is already available, UTCP-Forge can ingest and enrich it:
+### 4. Scan from OpenAPI / Swagger (Fallback)
+
+Have an existing OpenAPI spec? UTCP-Forge enriches it just as easily:
 
 ```bash
 utcp-forge scan https://api.mycompany.com/openapi.json \
@@ -89,16 +104,83 @@ utcp-forge scan https://api.mycompany.com/openapi.json \
 
 ---
 
-## Technical Specifications
+## Output Example: Clean, Namespaced UTCP v1.0
 
-### CLI Reference
+Here is what UTCP-Forge generates from your raw code:
+
+```json
+{
+  "manual_version": "1.0.0",
+  "utcp_version": "1.0.2",
+  "tools": [
+    {
+      "name": "billing_service.orders_create",
+      "description": "Places a customer order. Charges credit card and reserves warehouse stock. Call only after validating cart items.",
+      "tags": ["orders"],
+      "inputs": {
+        "type": "object",
+        "properties": {
+          "body": {
+            "type": "object",
+            "title": "OrderPayload",
+            "properties": {
+              "item_id": { "type": "string" },
+              "quantity": { "type": "number" }
+            },
+            "required": ["item_id", "quantity"]
+          }
+        },
+        "required": ["body"]
+      },
+      "outputs": {
+        "type": "object",
+        "description": "JSON response from endpoint"
+      },
+      "tool_call_template": {
+        "name": "billing_service.orders_create",
+        "call_template_type": "http",
+        "url": "https://api.mycompany.com/api/v1/orders",
+        "http_method": "POST",
+        "content_type": "application/json",
+        "allowed_communication_protocols": ["http"],
+        "auth": {
+          "auth_type": "api_key",
+          "api_key": "Bearer ${billing_service__API_KEY}",
+          "var_name": "Authorization",
+          "location": "header"
+        }
+      }
+    }
+  ]
+}
+```
+
+---
+
+## Coding Agent Skill Integration
+
+UTCP-Forge includes an official Agent Skill in `skills/utcp-forge/` conforming to Anthropic and Claude Code specifications. 
+
+To give your AI coding agent the superpower of making any project agent-ready on command:
+
+```bash
+# Link or copy the skill into your agent's skills directory
+cp -r skills/utcp-forge ~/.agents/skills/
+```
+
+Now, simply prompt your coding agent:
+> *"Make this backend agent-ready with UTCP."*
+
+---
+
+## Technical Specifications & CLI Flags
 
 | Option | Flag | Description | Default |
 |---|---|---|---|
 | `target` | Positional | Path to codebase directory, or OpenAPI JSON/YAML URL/file | Required |
 | `--manual-name` | `-n` | Namespace prefix for tools and credentials | `app_service` |
 | `--output` | `-o` | Destination file path for generated manual | `utcp.json` |
-| `--base-url` | `-u` | Base URL prepended to route paths | `https://api.example.com` |
+| `--base-url` | `-u` | Base URL prepended to route paths (auto-detected if omitted) | Auto-detected |
 | `--llm-base-url` | N/A | Base URL for custom OpenAI-compatible server | Environment / None |
 | `--llm-api-key` | N/A | API key for LLM provider | Environment / None |
 | `--model` | `-m` | LLM model identifier | `free` |
@@ -106,9 +188,9 @@ utcp-forge scan https://api.mycompany.com/openapi.json \
 
 ---
 
-## Development and Testing
+## Verification & Testing
 
-Run test suite:
+Run unit test suite:
 
 ```bash
 PYTHONPATH=src .venv/bin/python -m unittest discover tests
@@ -118,4 +200,4 @@ PYTHONPATH=src .venv/bin/python -m unittest discover tests
 
 ## License
 
-Apache License 2.0. See LICENSE for details.
+Apache License 2.0. See [LICENSE](LICENSE) for details.
