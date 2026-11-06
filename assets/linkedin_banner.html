@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    width: 1200px;
+    height: 675px;
+    background: radial-gradient(circle at 10% 20%, #0d1117 0%, #010409 100%);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: #f0f6fc;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 48px;
+    overflow: hidden;
+    position: relative;
+  }
+  
+  /* Subtle glow effects */
+  .glow-cyan {
+    position: absolute;
+    width: 450px;
+    height: 450px;
+    background: radial-gradient(circle, rgba(56, 189, 248, 0.15) 0%, rgba(0,0,0,0) 70%);
+    top: -100px;
+    right: -100px;
+    pointer-events: none;
+  }
+  .glow-purple {
+    position: absolute;
+    width: 500px;
+    height: 500px;
+    background: radial-gradient(circle, rgba(168, 85, 247, 0.12) 0%, rgba(0,0,0,0) 70%);
+    bottom: -150px;
+    left: -100px;
+    pointer-events: none;
+  }
+
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .badge-row {
+    display: flex;
+    gap: 12px;
+  }
+  .badge {
+    background: rgba(56, 189, 248, 0.1);
+    border: 1px solid rgba(56, 189, 248, 0.3);
+    color: #38bdf8;
+    padding: 6px 14px;
+    border-radius: 9999px;
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .badge.purple {
+    background: rgba(168, 85, 247, 0.1);
+    border-color: rgba(168, 85, 247, 0.3);
+    color: #c084fc;
+  }
+  .repo-tag {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 15px;
+    color: #8b949e;
+  }
+  .repo-tag span { color: #58a6ff; font-weight: 600; }
+
+  .hero {
+    margin-top: 18px;
+  }
+  .hero h1 {
+    font-size: 44px;
+    font-weight: 800;
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+    background: linear-gradient(180deg, #ffffff 0%, #cbd5e1 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .hero h1 span.gradient {
+    background: linear-gradient(90deg, #38bdf8 0%, #818cf8 50%, #c084fc 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .hero p {
+    font-size: 18px;
+    color: #94a3b8;
+    margin-top: 10px;
+    max-width: 900px;
+  }
+
+  .content-grid {
+    display: grid;
+    grid-template-columns: 1.25fr 1fr;
+    gap: 24px;
+    margin-top: 24px;
+    flex-grow: 1;
+  }
+
+  .card {
+    background: rgba(13, 17, 23, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 20px 40px -15px rgba(0,0,0,0.5);
+  }
+
+  .card-header {
+    background: rgba(22, 27, 34, 0.9);
+    padding: 10px 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .dot { width: 10px; height: 10px; border-radius: 50%; }
+  .dot.red { background: #ff5f56; }
+  .dot.yellow { background: #ffbd2e; }
+  .dot.green { background: #27c93f; }
+  .card-title {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 12px;
+    color: #8b949e;
+    margin-left: 6px;
+  }
+
+  .terminal-body {
+    padding: 16px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 13px;
+    line-height: 1.5;
+    color: #e6edf3;
+    overflow: hidden;
+  }
+  .prompt-line { color: #38bdf8; margin-bottom: 8px; }
+  .prompt-cmd { color: #f0f6fc; font-weight: 600; }
+  .log-line { color: #8b949e; margin-bottom: 4px; }
+  .log-line span.cyan { color: #38bdf8; }
+  .log-line span.green { color: #4ade80; }
+  .log-line span.yellow { color: #facc15; }
+  
+  .table-box {
+    margin-top: 10px;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    padding: 8px;
+    background: #090d13;
+  }
+  .table-row {
+    display: grid;
+    grid-template-columns: 70px 60px 1fr 140px;
+    padding: 3px 0;
+    font-size: 11.5px;
+    border-bottom: 1px solid #161b22;
+  }
+  .table-row:last-child { border-bottom: none; }
+  .row-skip { color: #f87171; }
+  .row-inc { color: #4ade80; }
+  .row-meth-get { color: #38bdf8; }
+  .row-meth-post { color: #facc15; }
+  .row-meth-del { color: #f43f5e; }
+
+  /* Comparison Side */
+  .diff-box {
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    justify-content: center;
+    height: 100%;
+  }
+  .metric-card {
+    background: rgba(22, 27, 34, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    padding: 12px 16px;
+  }
+  .metric-label {
+    font-size: 12px;
+    color: #8b949e;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-weight: 600;
+  }
+  .metric-val {
+    font-size: 22px;
+    font-weight: 700;
+    color: #f0f6fc;
+    margin-top: 2px;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+  .metric-val span.highlight { color: #4ade80; }
+  .metric-val span.sub { font-size: 12px; color: #8b949e; font-weight: 400; }
+
+  .footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 14px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  .features-strip {
+    display: flex;
+    gap: 24px;
+    font-size: 13.5px;
+    color: #94a3b8;
+  }
+  .feature-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .check-icon {
+    color: #38bdf8;
+    font-weight: bold;
+  }
+  .github-link {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 13px;
+    color: #58a6ff;
+  }
+</style>
+</head>
+<body>
+  <div class="glow-cyan"></div>
+  <div class="glow-purple"></div>
+
+  <!-- Top Header -->
+  <div class="header">
+    <div class="badge-row">
+      <div class="badge">Open Source Release</div>
+      <div class="badge purple">Universal Tool Calling Protocol v1.0</div>
+    </div>
+    <div class="repo-tag">github.com/<span>Mu99Ti/utcp-forge</span></div>
+  </div>
+
+  <!-- Hero Titles -->
+  <div class="hero">
+    <h1>UTCP-Forge: <span class="gradient">Kill the MCP Wrapper Tax</span></h1>
+    <p>Zero-overhead agentification. Turn any backend codebase into production-ready AI agent tools in seconds.</p>
+  </div>
+
+  <!-- Main Content Grid -->
+  <div class="content-grid">
+    <!-- Left Card: Terminal -->
+    <div class="card">
+      <div class="card-header">
+        <div class="dot red"></div>
+        <div class="dot yellow"></div>
+        <div class="dot green"></div>
+        <div class="card-title">utcp-forge scan ./my_fullstack_app</div>
+      </div>
+      <div class="terminal-body">
+        <div class="prompt-line">$ <span class="prompt-cmd">utcp-forge scan ./my_monorepo --output utcp.json</span></div>
+        <div class="log-line">Auto-detected backend: <span class="cyan">/backend (FastAPI)</span></div>
+        <div class="log-line">Auto-detected base URL: <span class="cyan">http://localhost:8000</span></div>
+        <div class="log-line">SymbolTable AST walk: <span class="green">Indexed 23 models (0 tokens, 12ms)</span></div>
+        <div class="log-line">DeepAgent: <span class="yellow">Pruning noise & enriching semantic intent...</span></div>
+
+        <div class="table-box">
+          <div class="table-row">
+            <span class="row-skip">SKIP</span>
+            <span class="row-meth-get">GET</span>
+            <span style="color: #64748b;">/health-check/</span>
+            <span style="color: #64748b;">Internal probe</span>
+          </div>
+          <div class="table-row">
+            <span class="row-inc">INCLUDE</span>
+            <span class="row-meth-get">GET</span>
+            <span>/api/v1/users/{id}</span>
+            <span style="color: #94a3b8;">users_get_by_id</span>
+          </div>
+          <div class="table-row">
+            <span class="row-inc">INCLUDE</span>
+            <span class="row-meth-post">POST</span>
+            <span>/api/v1/orders</span>
+            <span style="color: #94a3b8;">orders_create</span>
+          </div>
+          <div class="table-row">
+            <span class="row-inc">INCLUDE</span>
+            <span class="row-meth-del">DELETE</span>
+            <span>/api/v1/orders/{id}</span>
+            <span style="color: #94a3b8;">orders_delete_by_id</span>
+          </div>
+        </div>
+        <div class="log-line" style="margin-top: 8px;">
+          <span class="green">Generated production UTCP manual:</span> 22 tools compiled to <b>utcp.json</b>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Card: Efficiency & Value Metrics -->
+    <div class="card">
+      <div class="card-header">
+        <div class="dot red"></div>
+        <div class="dot yellow"></div>
+        <div class="dot green"></div>
+        <div class="card-title">Architecture Highlights</div>
+      </div>
+      <div class="diff-box">
+        <div class="metric-card">
+          <div class="metric-label">Token Footprint per Route</div>
+          <div class="metric-val">
+            <span class="highlight">~350 tokens</span>
+            <span class="sub">vs 15,000+ raw files</span>
+          </div>
+        </div>
+
+        <div class="metric-card">
+          <div class="metric-label">Runtime Proxy Latency</div>
+          <div class="metric-val">
+            <span class="highlight">0 ms</span>
+            <span class="sub">Direct HTTP/WebSocket calls</span>
+          </div>
+        </div>
+
+        <div class="metric-card">
+          <div class="metric-label">Enterprise Namespacing</div>
+          <div class="metric-val" style="font-size: 15px; font-family: ui-monospace, monospace; color: #38bdf8;">
+            service.orders_create <br/>
+            <span style="color: #c084fc;">${service__API_KEY}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom Footer -->
+  <div class="footer">
+    <div class="features-strip">
+      <div class="feature-item"><span class="check-icon">&#10003;</span> Monorepo Auto-Discovery</div>
+      <div class="feature-item"><span class="check-icon">&#10003;</span> Deterministic AST Indexer</div>
+      <div class="feature-item"><span class="check-icon">&#10003;</span> Official Coding Agent Skill</div>
+    </div>
+    <div class="github-link">pip install utcp-forge</div>
+  </div>
+</body>
+</html>
